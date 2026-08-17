@@ -1,6 +1,8 @@
 version: '3.8'
 services:
-  llm-guard:
+  app:
     build: .
+    container_name: llm-eval-guard
     ports:
-      - '8000:8000'
+      - "8000:8000"
+    restart: unless-stopped
