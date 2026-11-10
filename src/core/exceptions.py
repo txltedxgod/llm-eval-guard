@@ -1,5 +1,6 @@
 from fastapi import status
 
+
 class AppException(Exception):
     def __init__(self, message: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR):
         self.message = message
