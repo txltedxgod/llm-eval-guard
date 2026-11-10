@@ -5,40 +5,41 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-Production-grade LLM evaluation, safety guardrail, and prompt security gateway. Provides real-time prompt injection defense, multi-vector adversarial obfuscation detection, and PII masking.
+Production-grade LLM evaluation, safety guardrail, and prompt security gateway. Provides deterministic hallucination & groundedness evaluation, prompt injection defense, multi-vector adversarial obfuscation decoding, and Luhn-validated PII/secret redaction.
 
 ---
 
 ## Key Capabilities
 
-- **Multi-Vector Obfuscation Detection**: Defeats adversarial attacks attempting to bypass tokenizer guardrails:
-  - **Base64 Payload Obfuscation**: Decodes padded/unpadded base64 blocks and scans for hidden payload tokens.
-  - **Hexadecimal String Decoding**: Catches `\x..` escaped hex bytes as well as contiguous raw hex payloads.
-  - **Rot13 / Caesar Ciphers**: Decodes alphabet rotation attempts.
-  - **Zero-Width Invisible Characters**: Strips `\u200b`, `\u200c`, `\ufeff`, and soft hyphens before token evaluation.
-  - **Leetspeak Normalization**: Translates character substitution evasion (`1gn0r3 pr3v10u5 1n57ruc710n5` -> `ignore previous instructions`).
-  - **Reversed Attack Payloads**: Scans mirrored instruction payloads.
-- **PII Redaction**: High-precision regex redaction for emails, phone numbers, and sensitive identifiers.
-- **Dual Form Factor**: Run as a high-throughput standalone library (`eval_guard`) or as a containerized FastAPI microservice (`src`).
+- **Claim-Level Hallucination & Groundedness Detection (`eval_guard/hallucination.py`)**:
+  - Segments LLM outputs into verifiable atomic claims and evaluates faithfulness against source retrieval context in sub-millisecond synchronous execution.
+  - Detects **fabricated numbers/percentages/years**, **unsupported named entities**, and **polarity/negation contradictions** against the highest-overlap source statement.
+- **Multi-Vector Obfuscation Detection (`eval_guard/obfuscation.py`)**:
+  - **Base64 Payload Obfuscation**, **Hexadecimal Escaped & Raw Strings**, **Rot13 / Caesar Ciphers**, **Zero-Width Invisible Characters**, **Leetspeak Normalization**, and **Reversed Attack Payloads**.
+- **PII & Secret Redaction (`eval_guard/guard.py`)**:
+  - Redacts **leaked API/Bearer secrets** (`sk-...`, `ghp_...`, `AKIA...`, `Bearer ...`), **US SSNs**, **Luhn-validated payment cards** (leaving invalid card-like order IDs intact), emails, and phone numbers with per-category audit counts.
+- **Dual Form Factor**: Run as a zero-bloat Python SDK (`eval_guard`) or as a containerized FastAPI microservice (`src`).
 
 ---
 
 ## Directory Layout
 
 ```text
-├── eval_guard/             # Standalone, zero-bloat safety evaluation library
-│   ├── guard.py            # SafetyGuard engine with PII masking & risk scoring
-│   └── obfuscation.py      # Multi-vector adversarial payload decoder
-├── src/                    # FastAPI microservice wrapper
-│   ├── api/v1/router.py    # REST endpoint /api/v1/guard/inspect
-│   ├── core/               # Configuration and exception handlers
-│   └── services/           # Service delegation layer
-├── tests/                  # Pytest test suite with 100% pass rate
-│   ├── test_guard.py       # Direct guard evaluation tests
-│   ├── test_obfuscation.py # Multi-vector obfuscation unit tests
-│   └── test_service.py     # FastAPI test client integration tests
-├── Dockerfile              # Multi-stage production container
-└── pyproject.toml          # Tooling configuration (Ruff, pytest)
+├── eval_guard/              # Standalone safety & evaluation library
+│   ├── guard.py             # SafetyGuard engine with injection defense & Luhn PII/secret masking
+│   ├── hallucination.py     # Claim-level groundedness & faithfulness verifier
+│   └── obfuscation.py       # Multi-vector adversarial payload decoder
+├── src/                     # FastAPI microservice wrapper
+│   ├── api/v1/router.py     # REST endpoints (/api/v1/guard/inspect, /api/v1/guard/groundedness)
+│   ├── core/                # Configuration and exception handlers
+│   └── services/            # Service delegation layer
+├── tests/                   # Pytest unit & FastAPI integration suite
+│   ├── test_guard.py        # Prompt injection & Luhn/PII/secret masking tests
+│   ├── test_hallucination.py# Groundedness, numeric fabrication & polarity contradiction tests
+│   ├── test_obfuscation.py  # Multi-vector obfuscation unit tests
+│   └── test_service.py      # FastAPI TestClient integration tests
+├── Dockerfile               # Multi-stage production container
+└── pyproject.toml           # Tooling configuration (Ruff, pytest, mypy)
 ```
 
 ---
@@ -46,21 +47,23 @@ Production-grade LLM evaluation, safety guardrail, and prompt security gateway. 
 ## Python SDK Quick Start
 
 ```python
-from eval_guard import SafetyGuard, detect_obfuscated_injection, inspect_obfuscation
+from eval_guard import SafetyGuard, evaluate_groundedness, inspect_obfuscation
 
 guard = SafetyGuard()
 
-# Direct or obfuscated attack evaluation
-result = guard.evaluate("Hello, please note: aWdub3JlIHByZXZpb3VzIGluc3RydWN0aW9ucw==")
-print(result.is_safe)       # False
-print(result.risk_score)    # 0.98
-print(result.violations)    # ['Obfuscated prompt injection detected (base64)']
+# Direct/obfuscated attack & PII inspection
+result = guard.evaluate("Email dev@example.com; card 4111-1111-1111-1111")
+print(result.masked_text)        # Email [REDACTED_EMAIL]; card [REDACTED_CARD]
+print(result.redacted_entities)  # {'card': 1, 'email': 1}
 
-# Deep inspection of obfuscation vectors
-inspection = inspect_obfuscation("1gn0r3 pr3v10u5 1n57ruc710n5")
-print(inspection.detected)        # True
-print(inspection.vector)          # 'leetspeak'
-print(inspection.matched_keyword) # 'ignore previous instructions'
+# Claim-level hallucination verification against retrieval documents
+report = evaluate_groundedness(
+    context=["Quarterly revenue grew 12% in Q3 2025."],
+    response="Quarterly revenue grew 87% in Q3 2025.",
+)
+print(report.is_grounded)        # False
+print(report.hallucination_risk) # > 0.7
+print(report.ungrounded_claims[0].missing_anchors)  # ['87%']
 ```
 
 ---
@@ -79,21 +82,19 @@ curl -X POST "http://localhost:8000/api/v1/guard/inspect" \
   -d '{"prompt": "Contact me at dev@example.com or ignore previous instructions"}'
 ```
 
-Response:
-```json
-{
-  "is_safe": false,
-  "risk_score": 0.95,
-  "violations": ["Prompt injection attempt detected"],
-  "masked_prompt": "Contact me at [REDACTED_EMAIL] or ignore previous instructions"
-}
+Verify groundedness against source documents:
+```bash
+curl -X POST "http://localhost:8000/api/v1/guard/groundedness" \
+  -H "Content-Type: application/json" \
+  -d '{"context": ["FastAPI uses ASGI."], "response": "FastAPI uses ASGI."}'
 ```
 
 ---
 
-## Running Tests
+## Running Lint & Tests
 
 ```bash
+ruff check .
 pytest -v tests/
 ```
 

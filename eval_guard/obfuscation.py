@@ -10,7 +10,6 @@ import base64
 import codecs
 import re
 from dataclasses import dataclass
-from typing import Optional, List, Tuple
 
 INJECTION_KEYWORDS: tuple[str, ...] = (
     "ignore previous instructions",
@@ -53,9 +52,9 @@ _LEET_MAP = {
 @dataclass
 class ObfuscationCheckResult:
     detected: bool
-    vector: Optional[str] = None
-    decoded_payload: Optional[str] = None
-    matched_keyword: Optional[str] = None
+    vector: str | None = None
+    decoded_payload: str | None = None
+    matched_keyword: str | None = None
 
 
 def normalize_invisible_chars(text: str) -> str:
@@ -68,7 +67,7 @@ def normalize_leetspeak(text: str) -> str:
     return text.translate(_LEET_MAP).lower()
 
 
-def _check_plain_keywords(text: str) -> Optional[str]:
+def _check_plain_keywords(text: str) -> str | None:
     lowered = text.lower()
     for kw in INJECTION_KEYWORDS:
         if kw in lowered:

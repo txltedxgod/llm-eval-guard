@@ -1,18 +1,18 @@
 .PHONY: all test run lint clean docker-build
 
-all: test
+all: lint test
 
 test:
-	pytest
+	pytest -v tests/
 
 run:
-	python -m guardrails.server
+	uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 lint:
-	@echo "Running lint checks..."
+	ruff check .
 
 clean:
-	@echo "Cleaning artifacts..."
+	rm -rf .pytest_cache .ruff_cache __pycache__
 
 docker-build:
 	docker build -t app:latest .

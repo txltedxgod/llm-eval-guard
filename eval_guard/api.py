@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 from eval_guard.guard import SafetyGuard
 
 app = FastAPI(title="LLM Eval Guard", version="0.1.0")
