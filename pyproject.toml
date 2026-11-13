@@ -19,7 +19,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "fastapi>=0.110.0",
+    "fastapi>=0.162.4",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.16.1",
     "uvicorn[standard]>=0.28.0",
