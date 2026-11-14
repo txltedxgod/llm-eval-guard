@@ -9,6 +9,18 @@ Production-grade LLM evaluation, safety guardrail, and prompt security gateway. 
 
 ---
 
+## 🎬 Feature Demo
+
+<p align="center">
+  <img src="assets/demo.gif" alt="LLM Eval Guard Feature Demo — Claim-Level Hallucination Detection & Prompt Injection Defense" width="840" />
+</p>
+<p align="center">
+  <sub><a href="assets/demo.mp4">Watch / Download 1080p60 MP4</a></sub>
+</p>
+
+---
+---
+
 ## Key Capabilities
 
 - **Claim-Level Hallucination & Groundedness Detection (`eval_guard/hallucination.py`)**:
